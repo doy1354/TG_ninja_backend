@@ -4,5 +4,5 @@ temp
 build
 .DS_Store
 .vscode
-./api/.env
-./api/.env.local
+.env
+.env.local
