@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const uniqueValidator = require('mongoose-unique-validator');
+const { FARMING_STEP } = require('../constant/constants');
 const JOIN_BONUS = 500;
 
 const userSchema = mongoose.Schema({
@@ -25,22 +26,15 @@ const userSchema = mongoose.Schema({
     },
     farmingStep: {
         type: Number,
-        default: 1,
+        default: FARMING_STEP.WAITING,
     },
     coinBalance: {
         type: Number,
         default: JOIN_BONUS,
     },
-    startTime: {
-        type: Number
-    },
     dailyTasksStartTime: {
         type: [Date],
         default: Array(9).fill(null),
-    },
-    readArticles: {
-        type: [mongoose.Schema.Types.ObjectId],
-        ref: 'news'
     },
     completedTasks: {
         type: [
@@ -49,14 +43,21 @@ const userSchema = mongoose.Schema({
                     type: mongoose.Schema.Types.ObjectId,
                     ref: 'task'
                 },
-                progress: { 
-                    type: Number, 
-                    default: 0 
+                progress: {
+                    type: Number,
+                    default: 0
                 },
             }
         ]
     },
-    updated: Date,
+    checkInStreak: {
+        type: Number,
+        default: 0, // Number of consecutive check-ins
+    },
+    lastClaimDate: {
+        type: Date, // Last check-in date
+    },
+    created: Date,
 })
 
 userSchema.plugin(uniqueValidator);

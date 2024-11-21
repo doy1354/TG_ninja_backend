@@ -1,41 +1,89 @@
 const user = require('../models/user')
 const { Task } = require('../models/task')
-const extend = require('lodash/extend')
+const extend = require('lodash/extend');
+const { FARMING_STEP, FARMING_TIME } = require('../constant/constants');
+const axios = require('axios');
 
-const BOOSTTIMES = [
-  2 * 3600 + 38 * 60,
-  1 * 3600 + 46 * 60,
-  1 * 3600 + 11 * 60,
-  47 * 60 + 38,
-  31 * 60 + 55,
-  21 * 60 + 23,
-  14 * 60 + 19,
-  9 * 60 + 36,
-  6 * 60 + 25
-];
+const bot_token = process.env.TELEGRAM_BOT_TOKEN;
 
 //get a user user by gamerId
 const userByID = async (req, res) => {
   const id = req.params.tgId;
+
   try {
-    let userData = await user.find({ tgId: id })
+    // Get all users sorted by coinBalance in descending order
+    const usersData = await user.find().sort({ coinBalance: -1 });
+
+    // Find the user by tgId
+    const userData = await user.findOne({ tgId: id });
+
     let response = {
-      "result": false,
-      "data": null
-    }
-    if (userData.length) {
-      response = {
-        "result": true,
-        "data": userData
+      result: false,
+      data: null,
+    };
+
+    if (userData) {
+      // Calculate the user's rank in the sorted array
+      const rank = usersData.findIndex((u) => u.tgId == id) + 1;
+
+      // Calculate remaining time (8 hours after farmingStartTime)
+      const endTime =
+        new Date(userData.farmingStartTime).getTime() +
+        FARMING_TIME.TIME * 60 * 60 * 1000;
+      const remainingTime = Math.max(0, endTime - Date.now());
+
+      // Convert remainingTime (in milliseconds) to MM:SS format
+      const remainingMinutes = Math.floor(remainingTime / 60000);
+      const remainingSeconds = Math.floor((remainingTime % 60000) / 1000);
+      const formattedTime = `${remainingMinutes
+        .toString()
+        .padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
+
+      // Check if the user has already claimed today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to start of the day
+      const lastClaimDate = new Date(userData.lastClaimDate || 0); // Default to epoch if no claim date
+
+      let streak = userData.checkInStreak || 0; // Default to 0 if not defined
+      let reward = 0;
+
+      if (lastClaimDate < today) {
+        if ((today - lastClaimDate) / (1000 * 60 * 60 * 24) > 1) {
+          streak = 1; // Reset streak if the user missed a day
+        } else {
+          streak += 1; // Increment streak for consecutive days
+        }
+
+        reward = streak <= 10 ? streak * 10 : 100;
+
+        userData.checkInStreak = streak;
+        userData.lastClaimDate = new Date();
+        userData.coinBalance += reward;
+        await userData.save();
       }
+
+      // Include rank, remaining time, streak, and reward in the response
+      response = {
+        result: true,
+        data: {
+          ...userData.toObject(), // Convert user data to plain object
+          rank,
+          remainingTime: formattedTime,
+          streak,
+          reward,
+          alreadyClaimed: lastClaimDate >= today, // Flag to indicate if the user has already claimed
+        },
+      };
     }
-    return res.json(response)
+
+    // Return the response
+    return res.json(response);
   } catch (err) {
     return res.status(500).json({
-      error: "Could not retrieve user" + err
-    })
+      error: "Could not retrieve user: " + err,
+    });
   }
-}
+};
 
 //get a remaining time by gamerId
 const getWaitingTime = async (req, res) => {
@@ -46,24 +94,11 @@ const getWaitingTime = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const { dailyTasksStartTime } = userData;
-
     // Default remaining time in seconds (8 hours)
     const defaultRemainingTime = 8 * 60 * 60;
 
     // Calculate the total boost time from completed items
     let totalBoostTime = 0;
-    dailyTasksStartTime.forEach((startTime, index) => {
-      if (startTime) {
-        const startTimeDate = new Date(startTime).getTime();
-        const nextStartTime = index < dailyTasksStartTime.length - 1 ? new Date(dailyTasksStartTime[index + 1]).getTime() : null;
-        // Check if the task was completed
-        if (Date.now() >= startTimeDate + 5 * 60 * 1000 && nextStartTime != 0) {
-          totalBoostTime += BOOSTTIMES[index] || 0;
-        }
-      }
-    });
-
     // waiting time after considering the boost times
     const waitingTime = defaultRemainingTime - totalBoostTime;
 
@@ -83,30 +118,16 @@ const getRemainingTime = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const { dailyTasksStartTime, farmingStartTime } = userData;
+    const { farmingStartTime } = userData;
 
     // Default remaining time in seconds (8 hours)
-    const defaultRemainingTime = 8 * 60 * 60;
+    const defaultRemainingTime = FARMING_TIME.TIME * 60 * 60;
 
     // Calculate elapsed time in seconds
     const elapsed = (Date.now() - new Date(farmingStartTime).getTime()) / 1000;
 
-    // Calculate the total boost time from completed items
-    let totalBoostTime = 0;
-    dailyTasksStartTime.forEach((startTime, index) => {
-      if (startTime) {
-        const startTimeDate = new Date(startTime).getTime();
-        const nextStartTime = index < dailyTasksStartTime.length - 1 ? new Date(dailyTasksStartTime[index + 1]).getTime() : null;
-
-        // Check if the task was completed
-        if (Date.now() >= startTimeDate + 5 * 60 * 1000 && nextStartTime != 0) {
-          totalBoostTime += BOOSTTIMES[index] || 0;
-        }
-      }
-    });
-
     // Remaining time after considering the boost times
-    const remainingTime = Math.max(0, defaultRemainingTime - totalBoostTime - elapsed);
+    const remainingTime = Math.max(0, defaultRemainingTime - elapsed);
 
     return res.status(200).json({ remainingTime });
   } catch (err) {
@@ -119,7 +140,7 @@ const createUser = async (req, res) => {
   try {
     await user.save()
     return res.status(200).json({
-      message: "ok!"
+      message: "success"
     })
   } catch (err) {
     return res.status(500).json({
@@ -134,26 +155,34 @@ const updateFarmingStartTime = async (req, res) => {
   try {
     const result = await user.findOneAndUpdate(
       { tgId: id },
-      { $set: { farmingStartTime: Date.now(), farmingStep: 1 } },
+      { $set: { farmingStartTime: Date.now(), farmingStep: FARMING_STEP.FARMING } },
       { new: true } // This option returns the modified document
     );
 
     if (result) {
+      // Calculate remaining time (8 hours in milliseconds)
+      const endTime = new Date(result.farmingStartTime).getTime() + FARMING_TIME.TIME * 60 * 60 * 1000;
+      const remainingTime = Math.max(0, endTime - Date.now()); // Ensure non-negative value
+
       return res.status(200).json({
-        message: "ok!",
-        updatedDocument: result // Include the updated document in the response for debugging
+        message: "success",
+        data: {
+          ...result.toObject(), // Convert mongoose document to plain object if needed
+          remainingTime, // Add remaining time to the response
+        },
       });
     } else {
       return res.status(404).json({
-        message: "User not found"
+        message: "User not found",
       });
     }
   } catch (err) {
     return res.status(500).json({
-      error: err
+      error: err.message,
     });
   }
-}
+};
+
 
 const addInvite = async (req, res) => {
   const inviteeid = req.params.tgId
@@ -197,7 +226,7 @@ const addInvite = async (req, res) => {
 
       await userData.save()
       return res.status(200).json({
-        message: "ok!"
+        message: "success"
       })
     } else {
       return res.status(200).json({
@@ -235,7 +264,7 @@ const readNews = async (req, res) => {
       userData.readNews = [...user.readNews, newsId];
       await userData.save()
       return res.status(200).json({
-        message: "ok!"
+        message: "success"
       })
     } else {
       return res.status(200).json({
@@ -251,12 +280,12 @@ const readNews = async (req, res) => {
 
 const updateCoinBalance = async (req, res) => {
   const id = req.params.tgId
-  const coinBalance = req.body.coinBalance
+  const amountToAdd = req.body.amountToAdd
 
   try {
-    let result = await user.findOneAndUpdate({ tgId: id }, { coinBalance: coinBalance }, { new: true })
+    let result = await user.findOneAndUpdate({ tgId: id }, { $inc: { coinBalance: amountToAdd } }, { new: true })
     return res.status(200).json({
-      message: "ok!",
+      message: "success",
       updatedDocument: result
     })
   } catch (err) {
@@ -267,21 +296,38 @@ const updateCoinBalance = async (req, res) => {
 }
 
 const handleClaim = async (req, res) => {
-  const id = req.params.tgId
-  const coinBalance = req.body.coinBalance
+  const id = req.params.tgId;
+  const amountToAdd = req.body.amountToAdd;  // Amount to add to the current balance
 
   try {
-    let result = await user.findOneAndUpdate({ tgId: id }, { coinBalance: coinBalance, farmingStep: 0 }, { new: true })
+    // Retrieve the current user document to get the current balance
+    const userDoc = await user.findOne({ tgId: id });
+
+    if (!userDoc) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Calculate the new balance by adding the current balance and the amount to add
+    const newBalance = userDoc.coinBalance + amountToAdd;
+
+    // Update the user's balance and farming step
+    const result = await user.findOneAndUpdate(
+      { tgId: id },
+      { coinBalance: newBalance, farmingStep: FARMING_STEP.WAITING },
+      { new: true }
+    );
+
     return res.status(200).json({
-      message: "ok!",
-      updatedDocument: result
-    })
+      message: "Balance updated successfully",
+      data: result
+    });
   } catch (err) {
     return res.status(500).json({
-      error: err
-    })
+      error: "Error updating balance: " + err.message
+    });
   }
-}
+};
+
 
 const updateFarmingStep = async (req, res) => {
   const id = req.params.tgId
@@ -290,8 +336,8 @@ const updateFarmingStep = async (req, res) => {
   try {
     let result = await user.findOneAndUpdate({ tgId: id }, { farmingStep: step }, { new: true })
     return res.status(200).json({
-      message: "ok!",
-      updatedDocument: result
+      message: "success",
+      data: result
     })
   } catch (err) {
     return res.status(500).json({
@@ -317,13 +363,13 @@ const updateDailyStartTime = async (req, res) => {
     if (dailyId === 0) {
       userData.dailyTasksStartTime[0] = new Date(Date.now() - 24 * 60 * 60 * 1000); // One day ago
     }
-    
+
     userData.dailyTasksStartTime[dailyId + 1] = Date.now();
 
     let result = await userData.save()
     return res.status(200).json({
-      message: "ok!",
-      updatedDocument: result
+      message: "success",
+      data: result
     })
   } catch (err) {
     return res.status(500).json({
@@ -334,8 +380,7 @@ const updateDailyStartTime = async (req, res) => {
 
 const getBackendDate = async (req, res) => {
   try {
-    const now = Date.now()
-
+    const now = new Date();
     return res.status(200).json({
       now
     });
@@ -353,7 +398,7 @@ const updateReadNewsIds = async (req, res) => {
   try {
     await user.findOneAndUpdate({ tgId: id }, { readArticles: readNewsIds })
     return res.status(200).json({
-      message: "ok!"
+      message: "success"
     })
   } catch (err) {
     return res.status(500).json({
@@ -396,8 +441,8 @@ const updateCompletedTask = async (req, res) => {
 
     let result = await userData.save();
     return res.status(200).json({
-      message: "ok!",
-      updatedDocument: result
+      message: "success",
+      data: result
     });
   } catch (err) {
     return res.status(500).json({
@@ -433,6 +478,58 @@ const getUnCompltedTaskCount = async (req, res) => {
   }
 };
 
+const getUserProfilePhoto = async (userId) => {
+  try {
+    const profileResponse = await axios.get(
+      `https://api.telegram.org/bot${bot_token}/getUserProfilePhotos?user_id=${userId}`
+    );
+
+    const profileData = profileResponse.data;
+    if (profileData.ok && profileData.result.total_count > 0) {
+      const fileId = profileData.result.photos[0][0].file_id;
+
+      const fileResponse = await axios.get(
+        `https://api.telegram.org/bot${bot_token}/getFile?file_id=${fileId}`
+      );
+
+      const fileData = fileResponse.data;
+      if (fileData.ok) {
+        const filePath = fileData.result.file_path;
+        return `https://api.telegram.org/file/bot${bot_token}/${filePath}`;
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching user profile photo:', error.message);
+  }
+  return '/images/avatar.png'; // Default avatar
+};
+
+const getLeaderboard = async (req, res) => {
+  try {
+    // Fetch all users sorted by coinBalance
+    const users = await user.find().sort({ coinBalance: -1 }).limit(23);
+
+    const leaderboard = await Promise.all(
+      users.map(async (user, index) => {
+        // Fetch user profile picture using the getUserProfilePhoto function
+        const profilePhoto = await getUserProfilePhoto(user.tgId);
+        return {
+          tgID: user.tgId,
+          username: user.username,
+          profilePhoto,
+          rank: index + 1, // Rank is the position in the sorted array (1-based index)
+          coinBalance: user.coinBalance,
+        };
+      })
+    );
+
+    return res.status(200).json({ leaderboard });
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
+    return res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+};
+
 module.exports = {
   userByID,
   getRemainingTime,
@@ -449,4 +546,5 @@ module.exports = {
   getBackendDate,
   updateCompletedTask,
   getUnCompltedTaskCount,
+  getLeaderboard,
 }

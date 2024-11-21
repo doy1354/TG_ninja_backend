@@ -4,7 +4,7 @@ const cors = require('cors');
 const Bottleneck = require('bottleneck');
 const app = express();
 require('dotenv').config();
-const mongoURI = process.env.MONGO_DB || "mongodb://localhost:27017/hexn";
+const mongoURI = process.env.MONGO_DB || "mongodb://localhost:27017/ninja_blum";
 // Include route files
 const usersRoute = require('./routes/user');
 const newsRoute = require('./routes/news');

@@ -15,6 +15,7 @@ router.put('/updateDailyStartTime/:tgId', userCtrl.updateDailyStartTime)
 router.put('/updateReadNewsIds/:tgId', userCtrl.updateReadNewsIds)
 router.put('/updateCompletedTask/:tgId', userCtrl.updateCompletedTask)
 router.get('/getUnCompltedTaskCount/:tgId', userCtrl.getUnCompltedTaskCount)
-
+router.get('/server/backendDate', userCtrl.getBackendDate)
+router.get('/leaderboard/getLeaderboard', userCtrl.getLeaderboard)
 // export the router module so that server.js file can use it
 module.exports = router;
