@@ -62,6 +62,7 @@ const userByID = async (req, res) => {
         await userData.save();
       }
 
+      let userAvatar = await getUserProfilePhoto(userData.tgId)
       // Include rank, remaining time, streak, and reward in the response
       response = {
         result: true,
@@ -72,6 +73,7 @@ const userByID = async (req, res) => {
           streak,
           reward,
           alreadyClaimed: lastClaimDate >= today, // Flag to indicate if the user has already claimed
+          userAvatar,
         },
       };
     }
