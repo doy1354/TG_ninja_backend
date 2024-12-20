@@ -169,6 +169,30 @@ const defaultTasks = [
         verificationCode: '',
         progress: 0,
     },
+    {
+        title: 'Follow NINJA World on Telegram',
+        category: 'slider',
+        conditionType: 'click',
+        tg_group_id: '',
+        conditionValue: 0,
+        reward: 100,
+        emoji: 'telegram.svg',
+        url: 'https://t.me/ninjaworldcrypto',
+        verificationCode: '',
+        progress: 0,
+    },
+    {
+        title: 'Join the NINJA World Community',
+        category: 'slider',
+        conditionType: 'click',
+        tg_group_id: '',
+        conditionValue: 0,
+        reward: 100,
+        emoji: 'telegram.svg',
+        url: 'https://t.me/ninjaworldgames',
+        verificationCode: '',
+        progress: 0,
+    },
 
 ];
 
