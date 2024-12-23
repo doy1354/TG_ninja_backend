@@ -1,6 +1,7 @@
 const { Task } = require('../models/task');
 const User = require('../models/user');
 const { PerformedTask } = require('../models/performedTask'); // Import PerformedTask model
+const userCtrl = require("./usersController");
 
 const createTask = async (req, res) => {
   const taskData = new Task(req.body.task);
@@ -185,7 +186,7 @@ const updatePerformedTask = async (req, res) => {
           { new: true }
         );
 
-        await distributeReferralRewards(tgId, task.reward)
+        await userCtrl.distributeReferralRewards(tgId, task.reward)
       }
     } else {
       // Get the task details
