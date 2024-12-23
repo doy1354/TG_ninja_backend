@@ -16,6 +16,10 @@ const userSchema = mongoose.Schema({
         type: String,
         default: '',
     },
+    inviter: {
+        type: Number,
+        default: 0, 
+    },
     inviteNum: {
         type: Number,
         default: 0,

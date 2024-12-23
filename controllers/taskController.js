@@ -177,15 +177,15 @@ const updatePerformedTask = async (req, res) => {
         { new: true } // Return the updated document
       );
 
-      console.log('progress', progress)
       if (updateData.tgId && progress == 'completed') {
         const task = await Task.findById(taskId);
-        console.log('task', task)
         await User.findOneAndUpdate(
           { tgId: tgId },
           { $inc: { coinBalance: task.reward } },
           { new: true }
         );
+
+        await distributeReferralRewards(tgId, task.reward)
       }
     } else {
       // Get the task details

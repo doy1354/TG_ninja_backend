@@ -60,6 +60,7 @@ const userByID = async (req, res) => {
         userData.lastClaimDate = new Date();
         userData.coinBalance += reward;
         await userData.save();
+        await distributeReferralRewards(id, reward)
       }
 
       let userAvatar = await getUserProfilePhoto(userData.tgId)
@@ -86,30 +87,6 @@ const userByID = async (req, res) => {
     });
   }
 };
-
-//get a remaining time by gamerId
-const getWaitingTime = async (req, res) => {
-  const tgId = req.params.tgId;
-  try {
-    const userData = await user.findOne({ tgId });
-    if (!userData) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Default remaining time in seconds (8 hours)
-    const defaultRemainingTime = 8 * 60 * 60;
-
-    // Calculate the total boost time from completed items
-    let totalBoostTime = 0;
-    // waiting time after considering the boost times
-    const waitingTime = defaultRemainingTime - totalBoostTime;
-
-    return res.status(200).json({ waitingTime });
-  } catch (err) {
-
-    return res.status(400).json({ error: err.message });
-  }
-}
 
 //get a remaining time by gamerId
 const getRemainingTime = async (req, res) => {
@@ -189,11 +166,10 @@ const updateFarmingStartTime = async (req, res) => {
 const addInvite = async (req, res) => {
   const inviteeid = req.params.tgId
   const inviterId = req.body.inviteId
-  const coinBonus = 200;
+  // const coinBonus = 200;
 
   try {
     let userData = await user.findOne({ tgId: inviterId })
-    // let inviteeUser = await user.findOne({ tgId: inviteeid })
 
     if (inviterId == inviteeid) {
       return res.status(200).json({
@@ -224,53 +200,22 @@ const addInvite = async (req, res) => {
     if (!isAlreadyInvited) {
       userData.inviteNum = userData.inviteNum + 1;
       userData.invitedUser = [...userData.invitedUser, inviteeid];
-      userData.coinBalance = userData.coinBalance + coinBonus
+      // userData.coinBalance = userData.coinBalance + coinBonus
 
       await userData.save()
+
+      let inviteeUser = await user.findOne({ tgId: inviteeid });
+      if (inviteeUser) {
+        inviteeUser.inviter = inviterId;
+        await inviteeUser.save()
+      }
+
       return res.status(200).json({
         message: "success"
       })
     } else {
       return res.status(200).json({
         error: "Already invited."
-      });
-    }
-  } catch (err) {
-    return res.status(500).json({
-      error: err
-    })
-  }
-}
-
-const readNews = async (req, res) => {
-  const tgId = req.params.tgId
-  const newsId = req.body.newsId
-
-  try {
-    let userData = await user.findOne({ tgId: tgId })
-
-    if (!userData) {
-      return res.status(500).json({
-        error: "User not found"
-      });
-    }
-
-    let isAlreadyRead = false;
-    if (userData.readNews.includes(newsId)) {
-      isAlreadyRead = true;
-    } else {
-      isAlreadyRead = false;
-    }
-
-    if (!isAlreadyRead) {
-      userData.readNews = [...user.readNews, newsId];
-      await userData.save()
-      return res.status(200).json({
-        message: "success"
-      })
-    } else {
-      return res.status(200).json({
-        error: "Already read."
       });
     }
   } catch (err) {
@@ -319,6 +264,8 @@ const handleClaim = async (req, res) => {
       { new: true }
     );
 
+    await distributeReferralRewards(id, amountToAdd)
+
     return res.status(200).json({
       message: "Balance updated successfully",
       data: result
@@ -329,7 +276,6 @@ const handleClaim = async (req, res) => {
     });
   }
 };
-
 
 const updateFarmingStep = async (req, res) => {
   const id = req.params.tgId
@@ -409,77 +355,6 @@ const updateReadNewsIds = async (req, res) => {
   }
 }
 
-const updateCompletedTask = async (req, res) => {
-  const tgId = req.params.tgId;
-  const taskId = req.body.taskId;
-  const progress = req.body.progress; // This should be either 0 or 1
-
-  try {
-    let userData = await user.findOne({ tgId: tgId });
-
-    if (!userData) {
-      return res.status(404).json({
-        error: "User not found"
-      });
-    }
-
-    if (progress === -1) {
-      // Remove the task from completedTasks if progress is -1
-      userData.completedTasks = userData.completedTasks.filter(task => task.taskId.toString() !== taskId);
-    } else {
-      // Check if task already exists in completedTasks
-      let existingTask = userData.completedTasks.find(task => task.taskId.toString() === taskId);
-
-      if (existingTask) {
-        existingTask.progress = progress; // Update progress if task exists
-      } else {
-        // Add new completed task
-        userData.completedTasks.push({
-          taskId: taskId,
-          progress: progress
-        });
-      }
-    }
-
-    let result = await userData.save();
-    return res.status(200).json({
-      message: "success",
-      data: result
-    });
-  } catch (err) {
-    return res.status(500).json({
-      error: err.message
-    });
-  }
-}
-
-const getUnCompltedTaskCount = async (req, res) => {
-  try {
-    const { tgId } = req.params;
-
-    // Fetch user data
-    const userData = await user.findOne({ tgId });
-    if (!userData) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Fetch all tasks
-    const allTasks = await Task.find({ isActive: true });
-    const totalTasks = allTasks.length;
-
-    // Calculate completed tasks
-    const completedTasks = userData.completedTasks.filter(task => task.progress === 1).length;
-
-    // Calculate uncompleted tasks
-    const uncompletedTasksCount = totalTasks - completedTasks;
-
-    res.json({ uncompletedTasksCount });
-  } catch (error) {
-    console.error('Error fetching uncompleted tasks:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
 const getUserProfilePhoto = async (userId) => {
   try {
     const profileResponse = await axios.get(
@@ -532,21 +407,55 @@ const getLeaderboard = async (req, res) => {
   }
 };
 
+const distributeReferralRewards = async (earnerId, earnedTokens) => {
+  try {
+    // Fetch the earning user
+    const earner = await user.findOne({tgId: earnerId});
+
+    if (!earner) {
+      throw new Error("Earning user not found");
+    }
+
+    let currentReferrerId = earner.inviter; // Get the immediate referrer
+    let rewardLevels = [0.1, 0.05]; // Percentage rewards for level 1 and 2
+    let level = 0;
+
+    // Distribute rewards up the referral chain
+    while (currentReferrerId && level < rewardLevels.length) {
+      const referrer = await user.findOne({tgId: currentReferrerId});
+      if (!referrer) break;
+
+      const reward = earnedTokens * rewardLevels[level];
+      referrer.coinBalance += reward;
+      await referrer.save();
+
+      currentReferrerId = referrer.inviter; // Move to the next referrer
+      level++;
+    }
+
+    return {
+      message: "Rewards distributed successfully",
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      error: error.message,
+    };
+  }
+};
+
 module.exports = {
   userByID,
   getRemainingTime,
-  getWaitingTime,
   createUser,
   updateFarmingStartTime,
   addInvite,
-  readNews,
   updateCoinBalance,
   handleClaim,
   updateFarmingStep,
   updateDailyStartTime,
   updateReadNewsIds,
   getBackendDate,
-  updateCompletedTask,
-  getUnCompltedTaskCount,
   getLeaderboard,
+  distributeReferralRewards
 }
