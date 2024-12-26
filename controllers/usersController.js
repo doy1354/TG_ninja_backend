@@ -1,6 +1,4 @@
 const user = require('../models/user')
-const { Task } = require('../models/task')
-const extend = require('lodash/extend');
 const { FARMING_STEP, FARMING_TIME } = require('../constant/constants');
 const axios = require('axios');
 
@@ -339,22 +337,6 @@ const getBackendDate = async (req, res) => {
   }
 }
 
-const updateReadNewsIds = async (req, res) => {
-  const id = req.params.tgId
-  const readNewsIds = req.body.readNewsIds
-
-  try {
-    await user.findOneAndUpdate({ tgId: id }, { readArticles: readNewsIds })
-    return res.status(200).json({
-      message: "success"
-    })
-  } catch (err) {
-    return res.status(500).json({
-      error: err
-    })
-  }
-}
-
 const getUserProfilePhoto = async (userId) => {
   try {
     const profileResponse = await axios.get(
@@ -444,6 +426,33 @@ const distributeReferralRewards = async (earnerId, earnedTokens) => {
   }
 };
 
+const getMyFriends = async (req, res) => {
+  const tgId = req.params.tgId
+
+  try {
+    // Fetch all my friends sorted by created date
+    const friendsData = await user.find({"inviter": parseInt(tgId)}).sort({ created: -1 });
+    const friends = await Promise.all(
+      friendsData.map(async (user, index) => {
+        // Fetch user profile picture using the getUserProfilePhoto function
+        const profilePhoto = await getUserProfilePhoto(user.tgId);
+        return {
+          tgID: user.tgId,
+          username: user.username,
+          profilePhoto,
+          rank: index + 1, // Rank is the position in the sorted array (1-based index)
+          coinBalance: user.coinBalance,
+        };
+      })
+    );
+
+    return res.status(200).json({ friends });
+  } catch (error) {
+    console.error('Error fetching friends:', error);
+    return res.status(500).json({ error: 'Failed to fetch friends' });
+  }
+};
+
 module.exports = {
   userByID,
   getRemainingTime,
@@ -454,8 +463,8 @@ module.exports = {
   handleClaim,
   updateFarmingStep,
   updateDailyStartTime,
-  updateReadNewsIds,
   getBackendDate,
   getLeaderboard,
-  distributeReferralRewards
+  distributeReferralRewards,
+  getMyFriends
 }
