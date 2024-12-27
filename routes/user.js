@@ -10,5 +10,6 @@ router.put('/addInvitedUser/:tgId', userCtrl.addInvite)
 router.get('/getRemainingTime/:tgId', userCtrl.getRemainingTime)
 router.get('/leaderboard/getLeaderboard', userCtrl.getLeaderboard)
 router.get('/getMyFriends/:tgId', userCtrl.getMyFriends)
+router.put('/claimReferralBonus/:tgId', userCtrl.claimReferralBonus)
 
 module.exports = router;

@@ -17,7 +17,7 @@ const CONSTANTS = {
       COMPLETED: 2,
     },
     FARMING_TIME: {
-      TIME: 5/60 // hours
+      TIME: 8 // hours
     }
   };
   

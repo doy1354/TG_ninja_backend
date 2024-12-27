@@ -408,7 +408,7 @@ const distributeReferralRewards = async (earnerId, earnedTokens) => {
       if (!referrer) break;
 
       const reward = earnedTokens * rewardLevels[level];
-      referrer.coinBalance += reward;
+      referrer.referralBonus += reward;
       await referrer.save();
 
       currentReferrerId = referrer.inviter; // Move to the next referrer
@@ -453,6 +453,38 @@ const getMyFriends = async (req, res) => {
   }
 };
 
+const claimReferralBonus = async (req, res) => {
+  const id = req.params.tgId;
+
+  try {
+    // Retrieve the current user document to get the current balance
+    const userDoc = await user.findOne({ tgId: id });
+
+    if (!userDoc) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Calculate the new balance by adding the current balance and the amount to add
+    const newBalance = userDoc.coinBalance + userDoc.referralBonus;
+
+    // Update the user's balance and farming step
+    const result = await user.findOneAndUpdate(
+      { tgId: id },
+      { coinBalance: newBalance, referralBonus: 0 },
+      { new: true }
+    );    
+
+    return res.status(200).json({
+      message: "Claimed successfully",
+      data: result
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: "Error updating balance: " + err.message
+    });
+  }
+};
+
 module.exports = {
   userByID,
   getRemainingTime,
@@ -466,5 +498,6 @@ module.exports = {
   getBackendDate,
   getLeaderboard,
   distributeReferralRewards,
-  getMyFriends
+  getMyFriends,
+  claimReferralBonus
 }

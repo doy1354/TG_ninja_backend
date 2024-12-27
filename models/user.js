@@ -36,6 +36,10 @@ const userSchema = mongoose.Schema({
         type: Number,
         default: JOIN_BONUS,
     },
+    referralBonus: {
+        type: Number,
+        default: 0,
+    },
     dailyTasksStartTime: {
         type: [Date],
         default: Array(9).fill(null),
