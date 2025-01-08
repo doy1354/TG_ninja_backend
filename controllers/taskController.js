@@ -220,6 +220,31 @@ const updatePerformedTask = async (req, res) => {
   }
 };
 
+const resetTask = async (req, res) => {
+  let tgId = req.body.tgId;
+  let taskId = req.body.taskId;
+
+  try {
+    // Check if the task exists for this user
+    const existingTask = await PerformedTask.findOne({
+      tgId,
+      taskId,
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    // Delete the task
+    await PerformedTask.findByIdAndDelete(existingTask._id);
+
+    return res.status(200).json({ message: "Task successfully deleted" });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+
 const verifyTask = async (req, res) => {
   const { tgId, taskId, verificationCode } = req.body;
 
@@ -268,5 +293,6 @@ module.exports = {
   editTask,
   deleteTask,
   updatePerformedTask,
+  resetTask,
   verifyTask,
 };

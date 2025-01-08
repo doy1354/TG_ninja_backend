@@ -53,7 +53,6 @@ const userByID = async (req, res) => {
         }
 
         reward = streak <= 10 ? streak * 10 : 100;
-
         userData.checkInStreak = streak;
         userData.lastClaimDate = new Date();
         userData.coinBalance += reward;
@@ -292,37 +291,6 @@ const updateFarmingStep = async (req, res) => {
   }
 }
 
-const updateDailyStartTime = async (req, res) => {
-  const id = req.params.tgId
-  const dailyId = req.body.dailyId
-
-  try {
-    let userData = await user.findOne({ tgId: id })
-
-    if (!userData) {
-      return res.status(500).json({
-        error: "User not found"
-      });
-    }
-
-    // If dailyId is 0, set the date at index 0 to one day ago
-    if (dailyId === 0) {
-      userData.dailyTasksStartTime[0] = new Date(Date.now() - 24 * 60 * 60 * 1000); // One day ago
-    }
-
-    userData.dailyTasksStartTime[dailyId + 1] = Date.now();
-
-    let result = await userData.save()
-    return res.status(200).json({
-      message: "success",
-      data: result
-    })
-  } catch (err) {
-    return res.status(500).json({
-      error: err
-    })
-  }
-}
 
 const getBackendDate = async (req, res) => {
   try {
@@ -494,7 +462,6 @@ module.exports = {
   updateCoinBalance,
   handleClaim,
   updateFarmingStep,
-  updateDailyStartTime,
   getBackendDate,
   getLeaderboard,
   distributeReferralRewards,
