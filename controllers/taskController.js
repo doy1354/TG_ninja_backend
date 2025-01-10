@@ -47,7 +47,7 @@ const getAllTasksForUser = async (req, res) => {
       );
 
       // Check requirements for farming and friend categories
-      if (!performedTask && (task.category === 'farming' || task.category === 'friends')) {
+      if (!performedTask && task.category === 'friends') {
         const meetsRequirements = await checkTaskRequirements(task, user);
 
         if (meetsRequirements) {
@@ -61,6 +61,11 @@ const getAllTasksForUser = async (req, res) => {
           return {
             ...task.toObject(),
             progress: newPerformedTask.progress
+          };
+        } else {
+          return {
+            ...task.toObject(),
+            progress: 'claim'
           };
         }
       }
@@ -79,9 +84,9 @@ const getAllTasksForUser = async (req, res) => {
 
 // Helper function to check task requirements
 const checkTaskRequirements = async (task, user) => {
-  if (task.category === 'farming') {
-    return user.coinBalance >= task.conditionValue
-  }
+  // if (task.category === 'farming') {
+  //   return user.coinBalance >= task.conditionValue
+  // }
 
   if (task.category === 'friends') {
     return user.inviteNum >= task.conditionValue
