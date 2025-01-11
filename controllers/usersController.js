@@ -174,11 +174,11 @@ const addInvite = async (req, res) => {
       });
     }
 
-    // if (inviteeUser) {
-    //   return res.status(200).json({
-    //     error: "User already joined the game"
-    //   });
-    // }
+    if (inviteeUser) {
+      return res.status(200).json({
+        error: "User already joined the game"
+      });
+    }
 
     if (!userData) {
       return res.status(200).json({
